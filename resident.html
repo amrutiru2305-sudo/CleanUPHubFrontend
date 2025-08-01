@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Report Civic Issue - CleanUPHub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f1f1f1;
+      padding: 20px;
+    }
+    h2 {
+      text-align: center;
+    }
+    form {
+      background: white;
+      padding: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    input, textarea, button {
+      width: 100%;
+      margin: 10px 0;
+      padding: 10px;
+      font-size: 1rem;
+    }
+    #map {
+      width: 100%;
+      height: 300px;
+      margin: 10px 0;
+    }
+    .success { color: green; text-align: center; }
+    .error { color: red; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <h2>📝 Report an Issue</h2>
+  <form id="complaint-form">
+    <input type="text" id="title" placeholder="Issue Title (e.g. Garbage dump)" required />
+    <textarea id="description" placeholder="Describe the issue..." required></textarea>
+    <input type="file" id="image" accept="image/*" required />
+    <input type="text" id="location" placeholder="Click on the map to select location" readonly />
+    <div id="map"></div>
+    <button type="submit">Submit Complaint</button>
+    <div id="message"></div>
+  </form>
+
+  <script>
+    let selectedLat = null;
+    let selectedLng = null;
+
+    // Cloudinary config
+    const cloudName = 'dhrjbhpmt';
+    const uploadPreset = 'ml_default'; // optional, you can use unsigned uploads or your own preset
+
+    // Initialize Google Map
+    function initMap() {
+      const defaultLocation = { lat: 17.385, lng: 78.4867 }; // Hyderabad center
+      const map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 12,
+        center: defaultLocation
+      });
+
+      let marker;
+
+      map.addListener("click", (e) => {
+        const lat = e.latLng.lat();
+        const lng = e.latLng.lng();
+        selectedLat = lat;
+        selectedLng = lng;
+        document.getElementById("location").value = `${lat}, ${lng}`;
+
+        if (marker) {
+          marker.setPosition(e.latLng);
+        } else {
+          marker = new google.maps.Marker({
+            position: e.latLng,
+            map: map
+          });
+        }
+      });
+    }
+
+    document.getElementById("complaint-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const title = document.getElementById("title").value.trim();
+      const description = document.getElementById("description").value.trim();
+      const location = document.getElementById("location").value.trim();
+      const imageFile = document.getElementById("image").files[0];
+      const messageBox = document.getElementById("message");
+
+      if (!imageFile || !selectedLat || !selectedLng) {
+        messageBox.innerHTML = "<p class='error'>Please select a location and image.</p>";
+        return;
+      }
+
+      try {
+        // Upload image to Cloudinary
+        const formData = new FormData();
+        formData.append("file", imageFile);
+        formData.append("upload_preset", "cleanuphupreset");
+        const cloudRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+          method: "POST",
+          body: formData
+        });
+        const cloudData = await cloudRes.json();
+        const imageUrl = cloudData.secure_url;
+
+        // Send complaint to backend
+console.log("🟡 Complaint data to send:", {
+  title,
+  description,
+  image: imageUrl,
+  location: {
+    lat: selectedLat,
+    lng: selectedLng
+  }
+});
+console.log("🟡 Token:", localStorage.getItem("token"));
+
+        // Send complaint to backend
+        const res = await fetch("http://localhost:5000/api/complaints", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + localStorage.getItem("token") // token stored on login
+          },
+          body: JSON.stringify({
+            title,
+            description,
+            image: imageUrl,
+            location: {
+              lat: selectedLat,
+              lng: selectedLng
+            }
+          })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          messageBox.innerHTML = "<p class='success'>✅ Complaint submitted successfully!</p>";
+          document.getElementById("complaint-form").reset();
+        } else {
+          messageBox.innerHTML = "<p class='error'>❌ " + (data.message || "Error submitting complaint.") + "</p>";
+        }
+      } catch (err) {
+        messageBox.innerHTML = "<p class='error'>❌ Server error. Try again later.</p>";
+      }
+    });
+  </script>
+
+  <script
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBG_acx1rgKGAZSAnGS1bSU5dx1Zj65ahc&callback=initMap"
+  async
+  defer
+></script>
+
+
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Worker Dashboard - CleanUPHub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      padding: 20px;
+    }
+    h2 {
+      text-align: center;
+    }
+    .complaint {
+      background: white;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    img {
+      max-width: 100%;
+      border-radius: 6px;
+    }
+    .status {
+      font-weight: bold;
+      margin: 8px 0;
+    }
+    select, button {
+      padding: 8px;
+      margin-top: 8px;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>🧰 Worker Dashboard</h2>
+  <div id="complaints-container"></div>
+
+  <script>
+    const token = localStorage.getItem("token");
+    const container = document.getElementById("complaints-container");
+
+    async function loadAssignedComplaints() {
+      if (!token) {
+        alert("Please login as worker first.");
+        return window.location.href = "worker-login.html"; // optional redirect
+      }
+
+      const res = await fetch("http://localhost:5000/api/complaints", {
+        headers: {
+          Authorization: "Bearer " + token
+        }
+      });
+
+      const data = await res.json();
+
+      const workerId = getUserIdFromToken(token);
+      const assigned = data.filter(c => c.assignedWorker && c.assignedWorker._id === workerId);
+
+      container.innerHTML = "";
+      assigned.forEach(complaint => {
+        const div = document.createElement("div");
+        div.className = "complaint";
+
+        div.innerHTML = `
+          <h3>🗑️ ${complaint.description}</h3>
+          <img src="${complaint.imageUrl}" alt="Complaint image" />
+          <p><strong>Status:</strong> <span class="status">${complaint.status}</span></p>
+          <label for="status-${complaint._id}">Update Status:</label>
+          <select id="status-${complaint._id}">
+            <option value="">Choose...</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Solved">Solved</option>
+          </select>
+          <button onclick="updateStatus('${complaint._id}')">Update</button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function getUserIdFromToken(token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.id;
+      } catch {
+        return null;
+      }
+    }
+
+    async function updateStatus(id) {
+      const select = document.getElementById(`status-${id}`);
+      const status = select.value;
+
+      if (!status) return alert("Please select a status");
+
+      const res = await fetch(`http://localhost:5000/api/complaints/status/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token
+        },
+        body: JSON.stringify({ status })
+      });
+
+      if (res.ok) {
+        alert("✅ Status updated!");
+        loadAssignedComplaints();
+      } else {
+        const err = await res.json();
+        alert("❌ Failed to update status: " + err.message);
+      }
+    }
+
+    loadAssignedComplaints();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Register</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 400px;
+      margin: 40px auto;
+      padding: 20px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    h2 {
+      text-align: center;
+    }
+    label {
+      display: block;
+      margin: 10px 0 5px;
+    }
+    select, input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      box-sizing: border-box;
+    }
+    .message {
+      margin-top: 15px;
+      text-align: center;
+    }
+    .success {
+      color: green;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Register Account</h2>
+
+  <form id="register-form">
+    <label for="role">Register As:</label>
+    <select id="role" required>
+      <option value="resident">Resident</option>
+      <option value="worker">Worker</option>
+      <option value="admin">Admin</option>
+    </select>
+
+    <label for="name">Full Name:</label>
+    <input type="text" id="name" required />
+
+    <label for="email">Email:</label>
+    <input type="email" id="email" required />
+
+    <label for="password">Password:</label>
+    <input type="password" id="password" required />
+
+    <button type="submit">Register</button>
+  </form>
+
+  <div id="message" class="message"></div>
+
+  <script>
+    const apiBaseURL = 'http://localhost:5000/api';
+
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const role = document.getElementById('role').value;
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      const messageDiv = document.getElementById('message');
+      messageDiv.textContent = '';
+      messageDiv.classList.remove('success', 'error');
+
+      try {
+        const res = await fetch(`${apiBaseURL}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password, role })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Registration failed');
+
+        messageDiv.textContent = `${role.charAt(0).toUpperCase() + role.slice(1)} account created successfully! Redirecting...`;
+        messageDiv.classList.add('success');
+
+        // Redirect after short delay
+        setTimeout(() => {
+          if (role === 'admin') {
+            window.location.href = 'admin-login.html';
+          } else if (role === 'worker') {
+            window.location.href = 'worker-login.html';
+          } else {
+            window.location.href = 'resident-login.html';
+          }
+        }, 1500);
+
+      } catch (err) {
+        messageDiv.textContent = '❌ ' + err.message;
+        messageDiv.classList.add('error');
+      }
+    });
+  </script>
+
+</body>
+</html>

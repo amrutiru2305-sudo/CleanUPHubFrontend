@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h2 { margin-top: 40px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #f4f4f4; }
+    form { margin-top: 20px; max-width: 400px; }
+    label { display: block; margin: 10px 0 5px; }
+    input[type="text"], input[type="email"], input[type="password"] {
+      width: 100%; padding: 8px; box-sizing: border-box;
+    }
+    button { margin-top: 10px; padding: 10px 15px; }
+    .message { margin-top: 15px; color: green; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+
+  <h1>Admin Dashboard</h1>
+
+  <!-- Complaints Section -->
+  <section id="complaints-section">
+    <h2>Reported Complaints</h2>
+    <table id="complaints-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Description</th>
+          <th>Image</th>
+          <th>Location</th>
+          <th>Status</th>
+          <th>Assigned Worker</th>
+          <th>Assign</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- complaints will be dynamically added here -->
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Register Worker Section -->
+  <section id="register-worker-section">
+    <h2>Register New Worker</h2>
+    <form id="worker-registration-form">
+      <label for="worker-name">Name:</label>
+      <input type="text" id="worker-name" name="name" required />
+
+      <label for="worker-email">Email:</label>
+      <input type="email" id="worker-email" name="email" required />
+
+      <label for="worker-password">Password:</label>
+      <input type="password" id="worker-password" name="password" required />
+
+      <button type="submit">Register Worker</button>
+    </form>
+    <div id="form-message" class="message"></div>
+  </section>
+
+<script>
+  const apiBaseURL = 'http://localhost:5000/api';
+
+  // Fetch complaints and display them in the table
+  async function loadComplaints() {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Please log in as admin first.');
+      window.location.href = 'admin-login.html';
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiBaseURL}/complaints`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Status ${res.status}: ${errText}`);
+      }
+
+      const complaints = await res.json();
+
+      const tbody = document.querySelector('#complaints-table tbody');
+      tbody.innerHTML = '';
+
+      complaints.forEach(c => {
+        const tr = document.createElement('tr');
+
+        const imgHtml = c.imageUrl
+          ? `<img src="${c.imageUrl}" alt="complaint image" width="80" />`
+          : 'No Image';
+
+        tr.innerHTML = `
+          <td>${c._id}</td>
+          <td>${c.description}</td>
+          <td>${imgHtml}</td>
+          <td>Lat: ${c.location?.lat}, Lng: ${c.location?.lng}</td>
+          <td>${c.status}</td>
+          <td>${c.assignedWorker ? c.assignedWorker.name : 'Not assigned'}</td>
+          <td>
+            <select data-id="${c._id}" class="worker-select">
+              <option value="">--Select--</option>
+            </select>
+            <button data-id="${c._id}" class="assign-btn">Assign</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Fetch worker list and fill all selects
+      const workerRes = await fetch(`${apiBaseURL}/auth/workers`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const workers = await workerRes.json();
+
+      document.querySelectorAll('.worker-select').forEach(select => {
+        workers.forEach(w => {
+          const opt = document.createElement('option');
+          opt.value = w._id;
+          opt.textContent = w.name;
+          select.appendChild(opt);
+        });
+      });
+
+    } catch (error) {
+      alert('Error loading complaints: ' + error.message);
+      console.error(error);
+    }
+  }
+
+  // Assign worker to complaint
+  document.addEventListener('click', async (e) => {
+    if (e.target.classList.contains('assign-btn')) {
+      const complaintId = e.target.getAttribute('data-id');
+      const select = document.querySelector(`select[data-id="${complaintId}"]`);
+      const workerId = select.value;
+
+      if (!workerId) {
+        alert('Please select a worker');
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+
+      try {
+        const res = await fetch(`${apiBaseURL}/complaints/assign/${complaintId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ workerId })
+        });
+
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(err);
+        }
+
+        alert('Worker assigned successfully');
+        loadComplaints();
+
+      } catch (error) {
+        alert('Error assigning worker: ' + error.message);
+      }
+    }
+  });
+
+  // Handle Worker registration
+  document.getElementById('worker-registration-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById('worker-name').value.trim();
+    const email = document.getElementById('worker-email').value.trim();
+    const password = document.getElementById('worker-password').value;
+
+    const formMessage = document.getElementById('form-message');
+    formMessage.textContent = '';
+    formMessage.classList.remove('error');
+
+    if (!name || !email || !password) {
+      formMessage.textContent = 'Please fill all fields.';
+      formMessage.classList.add('error');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiBaseURL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          role: 'worker'
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Failed to register worker');
+      }
+
+      formMessage.textContent = 'Worker registered successfully!';
+      formMessage.classList.remove('error');
+      formMessage.classList.add('success');
+      e.target.reset();
+      loadComplaints(); // Refresh table
+
+    } catch (error) {
+      formMessage.textContent = error.message;
+      formMessage.classList.add('error');
+    }
+  });
+
+  // On page load
+  window.onload = () => {
+    loadComplaints();
+  };
+</script>
+
+</body>
+</html>

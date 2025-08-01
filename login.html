@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login/Register - CleanUPHub</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .container {
+      background: white;
+      padding: 2rem;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      width: 350px;
+    }
+    h2 {
+      text-align: center;
+      color: #333;
+    }
+    input, button {
+      width: 100%;
+      margin: 10px 0;
+      padding: 10px;
+      font-size: 1rem;
+    }
+    .switch {
+      text-align: center;
+      font-size: 0.9rem;
+      cursor: pointer;
+      color: #007BFF;
+    }
+    .switch:hover {
+      text-decoration: underline;
+    }
+    .success, .error {
+      font-size: 0.9rem;
+      text-align: center;
+      margin-top: 10px;
+    }
+    .success { color: green; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2 id="form-title">Login</h2>
+
+  <div id="message"></div>
+
+  <form id="auth-form">
+    <input type="text" id="name" placeholder="Name" style="display: none;" />
+    <input type="email" id="email" placeholder="Email" required />
+    <input type="password" id="password" placeholder="Password" required />
+    <button type="submit" id="submit-btn">Login</button>
+  </form>
+
+  <p class="switch" onclick="toggleForm()">Don't have an account? Register here</p>
+</div>
+
+<script>
+  let isLogin = true;
+
+  const toggleForm = () => {
+    isLogin = !isLogin;
+    document.getElementById("form-title").innerText = isLogin ? "Login" : "Register";
+    document.getElementById("submit-btn").innerText = isLogin ? "Login" : "Register";
+    document.getElementById("name").style.display = isLogin ? "none" : "block";
+    document.querySelector(".switch").innerText = isLogin
+      ? "Don't have an account? Register here"
+      : "Already have an account? Login here";
+    document.getElementById("message").innerHTML = "";
+  };
+
+  document.getElementById("auth-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById("name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value.trim();
+    const role = "resident"; // registering only resident
+    const messageDiv = document.getElementById("message");
+
+    const url = isLogin
+      ? "http://localhost:5000/api/auth/login"
+      : "http://localhost:5000/api/auth/register";
+
+    const body = isLogin
+      ? { email, password }
+      : { name, email, password, role };
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        localStorage.setItem("token", data.token);
+        messageDiv.innerHTML = `<p class="success">✅ Login successful! Redirecting...</p>`;
+
+        const userRole = data.user?.role || data.role;
+
+        setTimeout(() => {
+          if (userRole === "resident") {
+            window.location.href = "report.html";
+          } else if (userRole === "worker") {
+            window.location.href = "worker.html";
+          } else if (userRole === "admin") {
+            window.location.href = "admin.html";
+          } else {
+            alert("❌ Unknown role. Cannot redirect.");
+          }
+        }, 1200);
+      } else {
+        messageDiv.innerHTML = `<p class="error">❌ ${data.message || "Something went wrong"}</p>`;
+      }
+    } catch (err) {
+      messageDiv.innerHTML = `<p class="error">❌ Server error. Please try again later.</p>`;
+    }
+  });
+</script>
+
+</body>
+</html>
